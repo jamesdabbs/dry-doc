@@ -1,7 +1,12 @@
-require "dry/doc/version"
+require 'dry-struct'
+
+require 'dry/doc/version'
 
 module Dry
   module Doc
-    # Your code goes here...
   end
 end
+
+require 'dry/doc/value'
+require 'dry/doc/schema'
+
