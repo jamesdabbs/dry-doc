@@ -8,9 +8,14 @@ class Dry::Doc::Schema
 
     def as_json
       {
-        type:         api_type,
-        description:  description,
+        description: description
       }.tap do |j|
+        if ref?
+          j[:ref] = primitive.ref
+        else
+          j[:type] = api_type
+        end
+
         if type.optional?
           j[Nullable] = true
         end
@@ -30,6 +35,10 @@ class Dry::Doc::Schema
       else
         raise NotImplementedError
       end
+    end
+
+    def ref?
+      primitive < ::Dry::Doc::Value
     end
 
     def primitive

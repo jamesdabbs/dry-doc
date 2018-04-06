@@ -15,6 +15,10 @@ class Dry::Doc::Value < ::Dry::Struct
     doc.as_json
   end
 
+  def self.ref
+    "#/definitions/#{name}"
+  end
+
   def self.attribute name, type, opts={}
     doc.register name, type, 
       description: opts.delete(:description)
