@@ -1,4 +1,6 @@
 class Dry::Doc::Schema
+  UnknownPrimitive = Class.new ::Dry::Doc::NotImplemented
+
   Nullable = :"x-nullable"
   T = ::Dry::Doc::Value::Types
 
@@ -7,45 +9,86 @@ class Dry::Doc::Schema
     attribute :description, T::String.optional
 
     def as_json
-      {
-        description: description
-      }.tap do |j|
-        if ref?
-          j[:ref] = primitive.ref
-        else
-          j[:type] = api_type
-        end
-
-        if type.optional?
-          j[Nullable] = true
-        end
-        if type.respond_to? :values
-          j[:values] = type.values
-        end
-      end
+      ast = type.respond_to?(:to_ast) ? type.to_ast : type
+      base = walk_ast(ast, {})
+      base[:description] = description if description
+      base
     end
 
     private
 
-    def api_type
-      if primitive == Integer
-        :integer
-      elsif primitive == String
-        :string
-      else
-        raise NotImplementedError
+    def walk_ast ast, acc
+      kind, data = ast
+
+      # TODO: compare with 
+      # https://github.com/dry-rb/dry-types/blob/d6e50bf54c42dd54ffc0e813738978f58bbfbfa7/lib/dry/types/compiler.rb
+      # and see if we can clean this up and cover all the possibilities
+      case kind
+      when :array
+        type, _meta = data
+        acc[:type] = 'array'
+        acc[:items] = walk_ast type, {}
+        return acc
+
+      when :constrained
+        type, *constraints, _meta = data
+        return walk_ast type, acc
+
+      when :constructor
+        definition, _cons, _meta = data
+        return walk_ast definition, acc
+
+      when :definition
+        primitive, _meta = data
+
+        if T.inline? primitive
+          return acc.merge primitive.as_open_api
+        elsif primitive.respond_to?(:ref) && primitive.ref
+          return acc.merge ref: primitive.ref
+        elsif primitive == Integer
+          return acc.merge type: :integer
+        elsif primitive == String
+          return acc.merge type: :string
+        elsif primitive == NilClass
+          return acc.merge type: nil
+        elsif primitive == DateTime
+          return acc.merge type: :string, format: :'date-time'
+        elsif primitive == Date
+          return acc.merge type: :string, format: :date
+        else
+          # TODO: allow plugins for handling custom types
+          # :nocov:
+          raise ::Dry::Doc::UnknownPrimitive, primitive
+          # :nocov:
+        end
+
+      when :sum
+        *nodes, _meta = data
+        types = nodes.map { |i| walk_ast i, {} }
+        nils, non_nils = types.partition { |t| t.key?(:type) && t[:type].nil? }
+        if nils.length == 1 && non_nils.length == 1
+          acc[:'x-nullable'] = true
+          acc = acc.merge non_nils.first
+        else
+          # TODO: anyOf?
+          raise ::Dry::Doc::NotImplemented, "Sum type (that isn't Maybe)"
+        end
+        return acc
+
+      when :enum
+        inner, _meta = data
+        acc = walk_ast inner, acc
+        acc[:values] = self.type.values
+        return acc
       end
-    end
 
-    def ref?
-      primitive < ::Dry::Doc::Value
-    end
-
-    def primitive
-      t = type.optional? ? type.right : type
-      t&.primitive
+      # :nocov:
+      raise ::Dry::Doc::NotImplemented, "AST kind: #{kind} | #{data}"
+      # :nocov:
     end
   end
+
+  attr_reader :klass
 
   def initialize klass
     @klass, @properties = klass, {}

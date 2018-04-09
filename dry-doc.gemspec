@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.email         = ["jamesdabbs@gmail.com"]
 
   spec.summary       = %q{Dry::Structs with swagger}
-  spec.homepage      = "TODO: Put your gem's website or public repo URL here."
+  spec.homepage      = 'https://github.com/jamesdabbs/dry-doc'
   spec.license       = "MIT"
 
   # Prevent pushing this gem to RubyGems.org. To allow pushes either set the 'allowed_push_host'
@@ -33,6 +33,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'rake', '~> 10.0'
   spec.add_development_dependency 'rspec', '~> 3.0'
   spec.add_development_dependency 'pry', '~> 0.11'
+  spec.add_development_dependency 'simplecov', '~> 0.16'
 
-  spec.add_runtime_dependency 'dry-struct', '~> 0.4'
+  spec.add_runtime_dependency 'dry-struct', '~> 0.3'
 end
