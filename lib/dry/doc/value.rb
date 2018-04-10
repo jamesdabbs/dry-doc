@@ -9,6 +9,16 @@ class Dry::Doc::Value < ::Dry::Struct
       ::Dry::Doc::Value::T::Constructor klass
     end
 
+    def self.constant value
+      ::Dry::Doc::Value::T::Constant value
+    end
+
+    def self.sum left, right
+      left  = instance left unless left.respond_to? :to_ast
+      right = instance right unless right.respond_to? :to_ast
+      ::Dry::Types::Sum.new left, right
+    end
+
     def self.[] type
       ::Dry::Doc::Value::Types::Array.member type
     end

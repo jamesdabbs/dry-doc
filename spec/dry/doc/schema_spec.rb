@@ -15,12 +15,18 @@ m = Module.new do |m|
   define :PrimitiveTypes do
     attribute :date, types::Date
     attribute :datetime, types::DateTime
+    attribute :bool, types::Bool
   end
 
   define :OptionalInline do
     attribute :nested, optional: true do
       attribute :name, types::String
     end
+  end
+
+  define :Sum do
+    attribute :basic, types::String | types::Int
+    attribute :compound, types.sum(m::A, m::B)
   end
 end
 
@@ -121,12 +127,15 @@ RSpec.describe Dry::Doc::Schema do
           datetime: {
             type: :string,
             format: :'date-time'
+          },
+          bool: {
+            type: :boolean
           }
         }
     end
   end
 
-  fcontext 'optional inline' do 
+  context 'optional inline' do 
     it 'can generate docs' do
       expect(m::OptionalInline.as_open_api).to eq \
         type: :object,
@@ -151,6 +160,27 @@ RSpec.describe Dry::Doc::Schema do
     it 'can instantiate with nil' do
       oi = m::OptionalInline.new(nested: nil)
       expect(oi.nested).to eq nil
+    end
+  end
+
+  context 'sum' do
+    it 'can render a sum type' do
+      expect(m::Sum.as_open_api).to eq \
+        type: :object,
+        properties: {
+          basic: {
+            oneOf: [
+              { type: :string },
+              { type: :integer }
+            ]
+          },
+          compound: {
+            oneOf: [
+              { ref: '#/definitions/A' },
+              { ref: '#/definitions/B' }
+            ]
+          }
+        }
     end
   end
 end

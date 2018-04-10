@@ -1,5 +1,5 @@
 class Dry::Doc::Schema
-  UnknownPrimitive = Class.new ::Dry::Doc::NotImplemented
+  ::Dry::Doc::UnknownPrimitive = Class.new ::Dry::Doc::NotImplemented
 
   Nullable = :"x-nullable"
   T = ::Dry::Doc::Value::Types
@@ -17,6 +17,8 @@ class Dry::Doc::Schema
 
     private
 
+    BOOL_AST = ::Dry::Doc::Value::Types::Bool.to_ast[1][0 .. -2]
+
     def walk_ast ast, acc
       kind, data = ast
 
@@ -32,6 +34,7 @@ class Dry::Doc::Schema
 
       when :constrained
         type, *constraints, _meta = data
+        # FIXME: note `is?` constraints
         return walk_ast type, acc
 
       when :constructor
@@ -64,21 +67,25 @@ class Dry::Doc::Schema
 
       when :sum
         *nodes, _meta = data
+
+        if nodes == BOOL_AST
+          return acc.merge type: :boolean
+        end
+
         types = nodes.map { |i| walk_ast i, {} }
         nils, non_nils = types.partition { |t| t.key?(:type) && t[:type].nil? }
         if nils.length == 1 && non_nils.length == 1
           acc[:'x-nullable'] = true
           acc = acc.merge non_nils.first
         else
-          # TODO: anyOf?
-          raise ::Dry::Doc::NotImplemented, "Sum type (that isn't Maybe)"
+          acc = acc.merge oneOf: non_nils
         end
         return acc
 
       when :enum
         inner, _meta = data
         acc = walk_ast inner, acc
-        acc[:values] = self.type.values
+        acc[:values] = self.type.values # FIXME: this needs to look at the AST
         return acc
       end
 
