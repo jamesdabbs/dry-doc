@@ -1,11 +1,10 @@
 class Dry::Doc::Schema
   ::Dry::Doc::UnknownPrimitive = Class.new ::Dry::Doc::NotImplemented
 
-  Nullable = :"x-nullable"
-  T = ::Dry::Doc::Value::Types
+  T = ::Dry::Doc::Types
 
   class Field < ::Dry::Struct
-    attribute :type, Object
+    attribute :type, ::Object
     attribute :description, T::String.optional
 
     def as_json
@@ -17,7 +16,43 @@ class Dry::Doc::Schema
 
     private
 
-    BOOL_AST = ::Dry::Doc::Value::Types::Bool.to_ast[1][0 .. -2]
+    BOOL_AST = ::Dry::Doc::Types::Bool.to_ast[1][0 .. -2]
+
+    def apply_constraint acc, con
+      if con.first == :and
+        con[1].reduce(acc) { |a, c| apply_constraint a, c}
+      elsif con.first == :predicate
+        apply_predicate acc, con[1]
+      else
+        # TODO: ignore?
+        acc
+      end
+    end
+
+    def restrict_enum acc, list
+      if acc[:enum]
+        acc[:enum] = acc[:enum] & list
+      else
+        acc[:enum] = list
+      end
+      acc
+    end
+
+    def apply_predicate acc, pred
+      case pred.first
+      when :type?
+        # These are (presumably) handled by `definition`
+        acc
+      when :included_in?
+        list = pred[1][0][1] # TODO: is this always true?
+        restrict_enum acc, list
+      when :is?
+        list = [pred[1][0][1]] # TODO: is this always true?
+        restrict_enum acc, list
+      else
+        acc
+      end
+    end
 
     def walk_ast ast, acc
       kind, data = ast
@@ -34,7 +69,9 @@ class Dry::Doc::Schema
 
       when :constrained
         type, *constraints, _meta = data
-        # FIXME: note `is?` constraints
+        acc = constraints.reduce(acc) do |a, con|
+          apply_constraint a, con
+        end
         return walk_ast type, acc
 
       when :constructor
@@ -44,10 +81,10 @@ class Dry::Doc::Schema
       when :definition
         primitive, _meta = data
 
-        if T.inline? primitive
+        if ::Dry::Doc.inline? primitive
           return acc.merge primitive.as_open_api
         elsif primitive.respond_to?(:ref) && primitive.ref
-          return acc.merge ref: primitive.ref
+          return acc.merge '$ref': "#/components/schemas/#{primitive.ref}"
         elsif primitive == Integer
           return acc.merge type: :integer
         elsif primitive == String
@@ -75,7 +112,7 @@ class Dry::Doc::Schema
         types = nodes.map { |i| walk_ast i, {} }
         nils, non_nils = types.partition { |t| t.key?(:type) && t[:type].nil? }
         if nils.length == 1 && non_nils.length == 1
-          acc[:'x-nullable'] = true
+          acc[:nullable] = true
           acc = acc.merge non_nils.first
         else
           acc = acc.merge oneOf: non_nils
@@ -85,7 +122,6 @@ class Dry::Doc::Schema
       when :enum
         inner, _meta = data
         acc = walk_ast inner, acc
-        acc[:values] = self.type.values # FIXME: this needs to look at the AST
         return acc
       end
 

@@ -16,6 +16,7 @@ m = Module.new do |m|
     attribute :date, types::Date
     attribute :datetime, types::DateTime
     attribute :bool, types::Bool
+    attribute :five, types.constant(5)
   end
 
   define :OptionalInline do
@@ -28,21 +29,30 @@ m = Module.new do |m|
     attribute :basic, types::String | types::Int
     attribute :compound, types.sum(m::A, m::B)
   end
+
+  type :Letters, types::String.enum('a', 'b', 'c')
+  define :WithLetter do
+    attribute :letter, m::Letters
+  end
 end
 
 RSpec.describe Dry::Doc::Schema do
+  it "produces a valid document" do
+    expect(m).to define_components
+  end
+
   context 'references' do
     it 'produces schema for references and lists' do
       expect(m::B.as_open_api).to eq \
         type: :object,
         properties: {
           single: {
-            ref: '#/definitions/A'
+            '$ref': '#/components/schemas/A'
           },
           list: {
             type: 'array',
             items: {
-              ref: '#/definitions/A'
+              '$ref': '#/components/schemas/A'
             }
           }
         }
@@ -72,7 +82,7 @@ RSpec.describe Dry::Doc::Schema do
   end
 
   context 'nesting' do
-    class C < ::Dry::Doc::Value
+    class C < ::Dry::Doc::Object
       attribute :name, types::String, description: 'Outer name'
       attribute(:nested,
         description: 'An inline nested attribute'
@@ -80,7 +90,6 @@ RSpec.describe Dry::Doc::Schema do
         attribute :name, types::String, description: 'Inner name'
       end
     end
-
 
     it 'produces schema for inline nested objects' do
       expect(C.as_open_api).to eq \
@@ -130,6 +139,10 @@ RSpec.describe Dry::Doc::Schema do
           },
           bool: {
             type: :boolean
+          },
+          five: {
+            type: :integer,
+            enum: [5]
           }
         }
     end
@@ -142,7 +155,7 @@ RSpec.describe Dry::Doc::Schema do
         properties: {
           nested: {
             type: :object,
-            'x-nullable': true,
+            nullable: true,
             properties: {
               name: {
                 type: :string
@@ -176,11 +189,33 @@ RSpec.describe Dry::Doc::Schema do
           },
           compound: {
             oneOf: [
-              { ref: '#/definitions/A' },
-              { ref: '#/definitions/B' }
+              { '$ref': '#/components/schemas/A' },
+              { '$ref': '#/components/schemas/B' }
             ]
           }
         }
+    end
+  end
+
+  context 'defined type enums' do
+    it 'generates documentation' do
+      expect(m::Letters.as_open_api).to eq \
+        type: :string,
+        enum: %w(a b c)
+
+      expect(m::WithLetter.as_open_api).to eq \
+        type: :object,
+        properties: {
+          letter: {
+            # TODO: should this be a ref?
+            type: :string,
+            enum: %w(a b c)
+          }
+        }
+    end
+
+    it 'can be instantiated' do
+      expect(m::WithLetter.new(letter: 'b').as_json).to eq(letter: 'b')
     end
   end
 end

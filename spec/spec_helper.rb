@@ -27,3 +27,39 @@ RSpec.configure do |config|
   config.order = :random
   Kernel.srand config.seed
 end
+
+module RSpec::Matchers
+  define :define_components do
+    match do |mod|
+      api = {
+       openapi: '3',
+        info: {
+          title: 'dry-doc',
+          version: ::Dry::Doc::VERSION
+        },
+        paths: {},
+        components: mod.as_open_api
+      }
+
+      f = Tempfile.new
+      f.write JSON.dump api
+      f.rewind
+      begin
+        # FIXME - Openapi3Parser doesn't seem to handle nested $refs
+        #   so for now we're just shelling out to a python implementation
+        @result = `openapi-spec-validator #{f.path} | head`.strip
+        @result == 'OK'
+      ensure
+        f.unlink
+      end
+    end
+
+    description do |mod|
+      'define valid OpenAPI components'
+    end
+
+    failure_message do |mod|
+      @result
+    end
+  end
+end

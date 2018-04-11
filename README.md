@@ -1,8 +1,78 @@
 # Dry::Doc
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/dry/doc`. To experiment with that code, run `bin/console` for an interactive prompt.
+```
+module MyApi
+  extend Dry::Doc::Namespace
 
-TODO: Delete this and the text above, and describe your gem
+  define :User do
+    # dry-struct definitions
+    attribute :name, types::String
+    attribute :age, types::Int.optional
+  end
+
+  define :Post do
+    attribute :author, types.instance(User)
+    attribute :title, types::String
+    attribute :body, types::String
+    attribute :created_at, types::DateTime
+  end
+end
+```
+
+Get serializable objects that check their input
+
+```
+u = MyApi::User.new(name: 'James', age: nil)
+u.as_json
+# => { name: "James", age: nil}
+
+v = MyApi::User.new(name: 0, age: '')
+# => Dry::Struct::Error: [MyApi::User.new] :name is missing in Hash input
+
+p = MyApi::Post.new(author: u, title: '...', body: '...', created_at: DateTime.now).as_json
+# => { author: { name: "James", age: null }, title: "...", body: "...", created_at: "..." }
+
+```
+
+and provide an open api definition (with e.g. `JSON.pretty_generate MyApi.as_open_api`)
+
+```
+{
+  "definitions": {
+    "User": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "age": {
+          "nullable": true,
+          "type": "integer"
+        }
+      }
+    },
+    "Post": {
+      "type": "object",
+      "properties": {
+        "author": {
+          "ref": "#/definitions/User"
+        },
+        "title": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
+```
+
 
 ## Installation
 
@@ -22,7 +92,7 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+See the specs for further examples. This currently implements just enough to get by, but the eventual hope is to be fully compatible with the OpenAPI spec.
 
 ## Development
 

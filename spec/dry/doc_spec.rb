@@ -19,6 +19,10 @@ m = Module.new do |m|
 end
 
 RSpec.describe Dry::Doc do
+  it "produces a valid document" do
+    expect(m).to define_components
+  end
+ 
   it 'names defined classes' do
     expect(m::A.name).to end_with 'A'
   end
@@ -34,12 +38,12 @@ RSpec.describe Dry::Doc do
         bar: {
           type: :integer,
           description: 'An integer field that might be null',
-          "x-nullable": true
+          nullable: true
         },
         baz: {
           type: :string,
           description: 'An enum of strings',
-          values: ['a', 'b', 'c']
+          enum: ['a', 'b', 'c']
         }
       }
   end
@@ -65,7 +69,7 @@ RSpec.describe Dry::Doc do
       properties: {
         a: {
           description: 'A referenced object',
-          ref: '#/definitions/A'
+          '$ref': '#/components/schemas/A'
         }
       }
   end
@@ -78,7 +82,7 @@ RSpec.describe Dry::Doc do
 
   it 'can produce api docs for a full namespace' do
     api = m.as_open_api
-    expect(api[:definitions].keys).to eq [:A, :B]
+    expect(api[:schemas].keys).to eq [:A, :B]
   end
 
   it 'defines inspectable objects' do
